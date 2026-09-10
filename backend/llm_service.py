@@ -37,8 +37,15 @@ T = TypeVar("T")
 # ─── Configuration ──────────────────────────────────────────────────────────
 
 MAX_RETRIES = 4
-RETRY_DELAY_BASE = 2  # seconds, exponential backoff
-MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+FALLBACK_MODELS = [
+    MODEL_NAME,
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-2.5-flash-lite",
+]
+# Remove duplicates while preserving order
+FALLBACK_MODELS = list(dict.fromkeys(FALLBACK_MODELS))
 
 
 class LLMError(Exception):
@@ -100,9 +107,10 @@ def call_llm(prompt: str, temperature: float = 0.3) -> str:
     last_error = None
 
     for attempt in range(MAX_RETRIES):
+        model_to_use = FALLBACK_MODELS[min(attempt, len(FALLBACK_MODELS) - 1)]
         try:
             response = client.models.generate_content(
-                model=MODEL_NAME,
+                model=model_to_use,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=temperature,
@@ -120,11 +128,15 @@ def call_llm(prompt: str, temperature: float = 0.3) -> str:
             last_error = e
             error_str = str(e).lower()
             
-            # Rate limit — signal clearly
+            # Rate limit or Quota exhaustion — signal clearly and switch to fallback model
             if "429" in str(e) or "rate" in error_str or "quota" in error_str:
                 if attempt < MAX_RETRIES - 1:
-                    delay = RETRY_DELAY_BASE ** (attempt + 1)
-                    logger.warning(f"Rate limited, retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                    next_model = FALLBACK_MODELS[min(attempt + 1, len(FALLBACK_MODELS) - 1)]
+                    delay = RETRY_DELAY_BASE ** attempt
+                    logger.warning(
+                        f"Rate limited or quota exceeded on '{model_to_use}'. "
+                        f"Retrying with '{next_model}' in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                    )
                     time.sleep(delay)
                     continue
                 raise LLMRateLimitError(f"Rate limited after {MAX_RETRIES} attempts: {e}")
@@ -132,8 +144,8 @@ def call_llm(prompt: str, temperature: float = 0.3) -> str:
             # Timeout or transient error — retry
             if "timeout" in error_str or "503" in str(e) or "500" in str(e):
                 if attempt < MAX_RETRIES - 1:
-                    delay = RETRY_DELAY_BASE ** (attempt + 1)
-                    logger.warning(f"Transient error, retrying in {delay}s: {e}")
+                    delay = RETRY_DELAY_BASE ** attempt
+                    logger.warning(f"Transient error on '{model_to_use}', retrying in {delay}s: {e}")
                     time.sleep(delay)
                     continue
             
