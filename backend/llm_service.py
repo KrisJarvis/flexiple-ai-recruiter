@@ -37,6 +37,7 @@ T = TypeVar("T")
 # ─── Configuration ──────────────────────────────────────────────────────────
 
 MAX_RETRIES = 4
+RETRY_DELAY_BASE = 2  # seconds, exponential backoff
 MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
 FALLBACK_MODELS = [
     MODEL_NAME,
