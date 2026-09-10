@@ -91,6 +91,7 @@ def score_and_rank(
             validator_fn=lambda raw, eids=expected_ids: validate_candidate_scores_batch(raw, eids),
             temperature=0.3,
             context_desc=f"candidate scores batch ({len(batch)} candidates: {sorted(list(expected_ids))})",
+            response_schema=list[CandidateScore],
         )
         all_scores.extend(batch_scores)
 

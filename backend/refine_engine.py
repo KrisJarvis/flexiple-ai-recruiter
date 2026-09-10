@@ -68,4 +68,5 @@ def refine_search(
         validator_fn=lambda raw: RefinementResponse.model_validate(raw),
         temperature=0.3,
         context_desc="refinement response",
+        response_schema=RefinementResponse,
     )

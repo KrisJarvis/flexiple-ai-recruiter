@@ -139,6 +139,7 @@ async def search(req: SearchRequest):
             validator_fn=lambda raw: SearchParseResponse.model_validate(raw),
             temperature=0.3,
             context_desc="search query parsing",
+            response_schema=SearchParseResponse,
         )
         filters = parsed.filters
         rubric = parsed.rubric

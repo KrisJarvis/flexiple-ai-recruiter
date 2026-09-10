@@ -97,7 +97,11 @@ def clean_response(text: str) -> str:
     return text.strip()
 
 
-def call_llm(prompt: str, temperature: float = 0.3) -> str:
+def call_llm(
+    prompt: str,
+    temperature: float = 0.3,
+    response_schema: Any | None = None,
+) -> str:
     """
     Call Gemini with retry logic and error handling.
     
@@ -110,14 +114,20 @@ def call_llm(prompt: str, temperature: float = 0.3) -> str:
     for attempt in range(MAX_RETRIES):
         model_to_use = FALLBACK_MODELS[min(attempt, len(FALLBACK_MODELS) - 1)]
         try:
+            config: dict[str, Any] = {
+                "temperature": temperature,
+                "response_mime_type": "application/json",
+                "thinking_config": types.ThinkingConfig(thinking_budget=0),
+            }
+            # A JSON MIME type only requests JSON. Supplying the schema also
+            # constrains its shape to what the endpoint validates.
+            if response_schema is not None:
+                config["response_schema"] = response_schema
+
             response = client.models.generate_content(
                 model=model_to_use,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=temperature,
-                    response_mime_type="application/json",
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                ),
+                config=types.GenerateContentConfig(**config),
             )
             
             if not response.text:
@@ -156,14 +166,18 @@ def call_llm(prompt: str, temperature: float = 0.3) -> str:
     raise LLMError(f"Failed after {MAX_RETRIES} attempts. Last error: {last_error}")
 
 
-def call_llm_json(prompt: str, temperature: float = 0.3) -> dict | list:
+def call_llm_json(
+    prompt: str,
+    temperature: float = 0.3,
+    response_schema: Any | None = None,
+) -> dict | list:
     """
     Call Gemini and parse the response as JSON.
     
     Returns parsed JSON (dict or list).
     Raises LLMValidationError if JSON parsing fails.
     """
-    raw = call_llm(prompt, temperature)
+    raw = call_llm(prompt, temperature, response_schema=response_schema)
     
     try:
         return json.loads(raw)
@@ -179,7 +193,8 @@ def call_llm_structured(
     prompt: str,
     validator_fn: Callable[[Any], T],
     temperature: float = 0.3,
-    context_desc: str = "structured output"
+    context_desc: str = "structured output",
+    response_schema: Any | None = None,
 ) -> T:
     """
     Call Gemini for structured output with validation and 1-time retry.
@@ -192,9 +207,27 @@ def call_llm_structured(
     """
     last_error_msg = ""
     
-    for attempt in range(2):  # 1 initial attempt + 1 retry
+    for attempt in range(2):  # 1 initial attempt + 1 targeted correction
         try:
-            raw_json = call_llm_json(prompt, temperature=temperature)
+            attempt_prompt = prompt
+            if attempt > 0:
+                attempt_prompt = (
+                    f"{prompt}\n\n"
+                    "Your previous response failed validation. Return a complete, "
+                    "valid JSON response that follows the requested structure exactly. "
+                    "Do not include markdown, commentary, or fields outside that structure. "
+                    f"Validation issue to correct: {last_error_msg}"
+                )
+
+            # Keep schema-less callers backwards-compatible and easy to mock.
+            if response_schema is None:
+                raw_json = call_llm_json(attempt_prompt, temperature=temperature)
+            else:
+                raw_json = call_llm_json(
+                    attempt_prompt,
+                    temperature=temperature,
+                    response_schema=response_schema,
+                )
             validated_output = validator_fn(raw_json)
             if attempt > 0:
                 logger.info(f"Successfully validated {context_desc} on retry attempt {attempt + 1}")
