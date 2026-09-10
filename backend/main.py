@@ -240,6 +240,31 @@ async def refine(req: RefineRequest):
         # Step 2: Re-filter with updated filters deterministically in Python
         matched, _ = filter_candidates(ALL_PROFILES, updated_filters)
 
+        # A refinement that leaves no objectively matching profiles must not
+        # replace a usable shortlist with an empty dashboard. Keep the prior
+        # loop intact and make it clear that the requested change was not
+        # applied. (Explicit thumbs-down exclusions below are handled
+        # separately, so they can still intentionally produce an empty list.)
+        if not matched:
+            previous_matches, _ = filter_candidates(ALL_PROFILES, req.current_filters)
+            return RefineResponse(
+                filters=req.current_filters,
+                rubric=req.current_rubric,
+                candidates=req.shown_candidates,
+                candidate_profiles=req.shown_profiles,
+                changes_made=[
+                    "Did not apply this refinement because it produced zero matching candidates.",
+                    "Retained the previous shortlist and criteria from the prior calibration loop.",
+                ],
+                reasoning=(
+                    "The requested requirements are too restrictive for the available candidate "
+                    "pool, so the previous valid shortlist has been preserved."
+                ),
+                total_filtered=len(previous_matches),
+                total_pool=len(ALL_PROFILES),
+                is_near_miss=False,
+            )
+
         # A thumbs-down is an explicit recruiter rejection, not merely a hint
         # for the LLM to infer broader criteria from. Keep those candidates out
         # of this refined shortlist even when they still satisfy the adjusted

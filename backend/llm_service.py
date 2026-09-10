@@ -124,11 +124,42 @@ def call_llm(
             if response_schema is not None:
                 config["response_schema"] = response_schema
 
-            response = client.models.generate_content(
-                model=model_to_use,
-                contents=prompt,
-                config=types.GenerateContentConfig(**config),
-            )
+            try:
+                response = client.models.generate_content(
+                    model=model_to_use,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(**config),
+                )
+            except Exception as schema_error:
+                schema_error_text = str(schema_error).lower()
+                # Some Gemini model versions reject response_schema with a
+                # generic 400 INVALID_ARGUMENT. Fall back to JSON mode rather
+                # than failing the recruiter action; the existing Pydantic
+                # validation and targeted correction retry still protect the
+                # response shape.
+                schema_not_supported = (
+                    response_schema is not None
+                    and "400" in str(schema_error)
+                    and (
+                        "invalid_argument" in schema_error_text
+                        or "invalid argument" in schema_error_text
+                    )
+                )
+                if not schema_not_supported:
+                    raise
+
+                logger.warning(
+                    "Model '%s' rejected response_schema; retrying the request without it: %s",
+                    model_to_use,
+                    schema_error,
+                )
+                schema_free_config = dict(config)
+                schema_free_config.pop("response_schema", None)
+                response = client.models.generate_content(
+                    model=model_to_use,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(**schema_free_config),
+                )
             
             if not response.text:
                 raise LLMError("Gemini returned an empty response")

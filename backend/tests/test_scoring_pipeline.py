@@ -591,6 +591,92 @@ class TestStructuredRecoverableError(unittest.TestCase):
             response.json()["changes_made"],
         )
 
+    @patch("main.refine_search")
+    @patch("main.filter_candidates")
+    @patch("main.score_and_rank")
+    def test_refine_zero_matches_retains_previous_loop(
+        self, mock_score, mock_filter, mock_refine
+    ):
+        """An impossible refinement keeps the prior shortlist instead of returning empty."""
+        from models import RefinementResult
+
+        profile = {
+            "id": "cand_prior",
+            "name": "Vikram Nair",
+            "current_title": "Database Engineer",
+            "years_experience": 6,
+            "location": "Bangalore",
+            "current_company": "ClariFi",
+            "current_company_type": "startup",
+            "skills": ["RDS", "PostgreSQL"],
+            "past_companies": [],
+            "education": "",
+            "summary": "",
+        }
+        score = {
+            "candidate_id": "cand_prior",
+            "overall_score": 95,
+            "match_tier": "strong_match",
+            "match_reason": "Strong database experience",
+            "evidence": [{"field": "skills", "value": "RDS", "explanation": "Matches"}],
+            "criterion_scores": [],
+        }
+        current_filters = {
+            "min_years_experience": 4,
+            "max_years_experience": 7,
+            "locations": ["Bangalore"],
+            "company_types": ["startup"],
+            "required_skills": ["RDS"],
+        }
+        current_rubric = {
+            "role_summary": "RDS developer",
+            "criteria": [{"name": "Database", "description": "RDS expertise", "weight": 5}],
+            "dealbreakers": [],
+            "positive_signals": [],
+        }
+
+        mock_refine.return_value = RefinementResult(
+            updated_filters=ObjectiveFilters(
+                min_years_experience=35,
+                locations=["Mars"],
+                companies=["NASA"],
+                required_skills=["Quantum Computing"],
+            ),
+            updated_rubric=FitRubric(
+                role_summary="NASA quantum-computing lead on Mars",
+                criteria=[RubricCriterion(name="NASA tenure", description="Thirty-five years at NASA", weight=5)],
+            ),
+            changes_made=["Applied the requested Mars and NASA requirements"],
+            reasoning="Applied the recruiter's feedback",
+        )
+        # First call is the impossible updated filter. The second call counts
+        # the prior valid pool for the rollback response.
+        mock_filter.side_effect = (
+            ([], []),
+            ([CandidateProfile.model_validate(profile)], []),
+        )
+
+        response = self.client.post(
+            "/api/refine",
+            json={
+                "feedback": "Require 35 years of quantum-computing experience at NASA and relocation to Mars.",
+                "current_filters": current_filters,
+                "current_rubric": current_rubric,
+                "shown_candidates": [score],
+                "shown_profiles": [profile],
+                "thumbs": {},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["filters"]["min_years_experience"], 4)
+        self.assertEqual(data["candidate_profiles"][0]["name"], "Vikram Nair")
+        self.assertEqual(data["candidates"][0]["candidate_id"], "cand_prior")
+        self.assertEqual(data["total_filtered"], 1)
+        self.assertTrue(any("Retained the previous shortlist" in change for change in data["changes_made"]))
+        mock_score.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

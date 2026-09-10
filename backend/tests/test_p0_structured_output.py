@@ -8,7 +8,7 @@ Unit and integration tests for P0 fixes:
 """
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from pydantic import ValidationError
 
 from models import (
@@ -25,10 +25,33 @@ from models import (
     RefinementResponse,
     SearchParseResponse,
 )
-from llm_service import call_llm_structured, LLMValidationError
+from llm_service import call_llm, call_llm_structured, LLMValidationError
 
 
 class TestP0StructuredOutput(unittest.TestCase):
+
+    def test_schema_rejection_falls_back_to_json_mode(self):
+        """A model that rejects response_schema still completes the request safely."""
+        response = MagicMock()
+        response.text = '{"ok": true}'
+        client = MagicMock()
+        client.models.generate_content.side_effect = [
+            Exception("400 INVALID_ARGUMENT: unsupported response schema"),
+            response,
+        ]
+
+        with patch("llm_service.get_client", return_value=client):
+            result = call_llm(
+                "Return a JSON object.",
+                response_schema={"type": "object"},
+            )
+
+        self.assertEqual(result, '{"ok": true}')
+        self.assertEqual(client.models.generate_content.call_count, 2)
+        first_config = client.models.generate_content.call_args_list[0].kwargs["config"]
+        second_config = client.models.generate_content.call_args_list[1].kwargs["config"]
+        self.assertIsNotNone(first_config.response_schema)
+        self.assertIsNone(second_config.response_schema)
 
     # ─── 1. ObjectiveFilters Validation ─────────────────────────────────────
 
