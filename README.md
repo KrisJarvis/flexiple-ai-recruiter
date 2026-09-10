@@ -77,14 +77,14 @@ Visit **http://localhost:5173** in your browser. (The Vite dev server automatica
 
 ### 4. Run the Tests
 
-I wrote 74 unit tests covering the deterministic filtering logic, LLM score validation, multi-key ranking, and error recovery:
+I wrote 77 unit tests covering the deterministic filtering logic, LLM score validation, multi-key ranking, and error recovery:
 
 ```bash
 cd backend
 python -m unittest discover -s tests -v
 ```
 
-All 74 tests run in about 0.05 seconds with zero external network calls (LLM responses are mocked for testing).
+All 77 tests run in about 0.1 seconds with zero external network calls (LLM responses are mocked for testing).
 
 ---
 
