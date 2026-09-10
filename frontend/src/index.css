@@ -1,0 +1,230 @@
+@import "tailwindcss";
+
+/* ─── Precision Instrument Design System ─────────────────────────────────── */
+
+@theme {
+  /* Core Palette Tokens */
+  --color-petrol-bg: #0C2B33;
+  --color-petrol-base: #082026;
+  --color-petrol-dark: #0A242B;
+  
+  --color-teal-surface: #143D47;
+  --color-teal-elevated: #184551;
+  --color-teal-hover: #1D515E;
+  --color-teal-inset: #0E313A;
+  --color-teal-border: #1E4E5A;
+  --color-teal-border-light: rgba(103, 232, 249, 0.16);
+
+  /* Accents */
+  --color-lime-accent: #A3E635;
+  --color-lime-hover: #BEF264;
+  --color-lime-active: #84CC16;
+  --color-cyan-accent: #67E8F9;
+  --color-cyan-hover: #A5F3FC;
+
+  /* Status */
+  --color-status-success: #4ADE80;
+  --color-status-warning: #FACC15;
+  --color-status-error: #FB7185;
+
+  /* Typography Colors */
+  --color-text-primary: #F0FDFA;
+  --color-text-muted: #94A3B8;
+  --color-text-dim: #5E7A8A;
+
+  /* Semantic Scale Mappings for Tailwind */
+  --color-surface-950: #0C2B33;
+  --color-surface-900: #0E313A;
+  --color-surface-850: #103741;
+  --color-surface-800: #143D47;
+  --color-surface-700: #184551;
+  --color-surface-600: #1E4E5A;
+  --color-surface-500: #5E7A8A;
+  --color-surface-400: #94A3B8;
+  --color-surface-300: #CBD5E1;
+  --color-surface-200: #E2E8F0;
+  --color-surface-100: #F0FDFA;
+
+  --color-primary-50: #F7FEE7;
+  --color-primary-100: #ECFCCB;
+  --color-primary-200: #D9F99D;
+  --color-primary-300: #BEF264;
+  --color-primary-400: #A3E635;
+  --color-primary-500: #84CC16;
+  --color-primary-600: #65A30D;
+  --color-primary-700: #4D7C0F;
+  --color-primary-800: #3F6212;
+  --color-primary-900: #365314;
+
+  --color-success-500: #4ADE80;
+  --color-success-600: #22C55E;
+  --color-warning-500: #FACC15;
+  --color-warning-600: #EAB308;
+  --color-danger-500: #FB7185;
+  --color-danger-600: #F43F5E;
+
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #0C2B33;
+  color: #F0FDFA;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular Figures for All Metrics */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ─── Precision Scrollbar ────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #0C2B33;
+}
+::-webkit-scrollbar-thumb {
+  background: #1E4E5A;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2B6B7B;
+}
+
+/* ─── Instrument Animations ─────────────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-lime {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(163, 230, 53, 0.45);
+    border-color: #A3E635;
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(163, 230, 53, 0);
+    border-color: rgba(163, 230, 53, 0.6);
+  }
+}
+
+@keyframes pulse-cyan {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(103, 232, 249, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(103, 232, 249, 0);
+  }
+}
+
+@keyframes scanline {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pulse-lime {
+  animation: pulse-lime 2.2s infinite ease-in-out;
+}
+
+.animate-pulse-cyan {
+  animation: pulse-cyan 2.2s infinite ease-in-out;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Stagger children */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.16s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.20s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.24s; }
+
+/* ─── Precision Surfaces & Glass ────────────────────────────────────────── */
+
+.glass {
+  background: rgba(20, 61, 71, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(103, 232, 249, 0.12);
+}
+
+.glass-elevated {
+  background: rgba(24, 69, 81, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(103, 232, 249, 0.18);
+}
+
+.glass-light {
+  background: rgba(24, 69, 81, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(103, 232, 249, 0.09);
+}
+
+/* Precision Instrument Grid Lines */
+.instrument-panel {
+  background: #143D47;
+  border: 1px solid #1E4E5A;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.instrument-panel-elevated {
+  background: #184551;
+  border: 1px solid #235B69;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Electric Lime Glow Utilities */
+.lime-glow {
+  box-shadow: 0 0 12px rgba(163, 230, 53, 0.28);
+}
+
+.lime-glow-strong {
+  box-shadow: 0 0 20px rgba(163, 230, 53, 0.45);
+}
+
+/* Cyan Glow Utilities */
+.cyan-glow {
+  box-shadow: 0 0 12px rgba(103, 232, 249, 0.22);
+}

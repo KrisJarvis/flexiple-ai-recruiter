@@ -1,0 +1,22 @@
+search-path = [
+    ".",
+    ".venv/Lib/site-packages",
+]
+python-interpreter-path = ".venv/Scripts/python.exe"
+site-package-path = [
+    ".venv/Lib/site-packages",
+]
+ignore-missing-imports = [
+    "google",
+    "google.genai",
+    "google.genai.types",
+    "llm_service",
+]
+infer-with-first-use = false
+project-excludes = [
+    "**/node_modules/**",
+    "**/__pycache__/**",
+    "**/venv/**",
+    "**/.venv/**",
+    "**/__pyrefly_virtual__/**",
+]
