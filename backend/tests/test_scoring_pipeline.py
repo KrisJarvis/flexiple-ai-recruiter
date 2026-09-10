@@ -482,6 +482,115 @@ class TestStructuredRecoverableError(unittest.TestCase):
         self.assertIn("preserved_filters", data)
         self.assertIn("preserved_rubric", data)
 
+    @patch("main.refine_search")
+    @patch("main.filter_candidates")
+    @patch("main.score_and_rank")
+    def test_refine_excludes_explicitly_rejected_candidate(
+        self, mock_score, mock_filter, mock_refine
+    ):
+        """A thumbs-down removes that candidate even if updated filters still match."""
+        from models import RefinementResult
+
+        rejected_profile = {
+            "id": "cand_rejected",
+            "name": "Vikram Nair",
+            "current_title": "Database Engineer",
+            "years_experience": 6,
+            "location": "Bangalore",
+            "current_company": "ClariFi",
+            "current_company_type": "startup",
+            "skills": ["RDS", "PostgreSQL"],
+            "past_companies": [],
+            "education": "",
+            "summary": "",
+        }
+        kept_profile = {
+            "id": "cand_kept",
+            "name": "Priya Shah",
+            "current_title": "Tech Lead",
+            "years_experience": 7,
+            "location": "Bangalore",
+            "current_company": "ScaleWorks",
+            "current_company_type": "scaleup",
+            "skills": ["RDS", "PostgreSQL", "Terraform"],
+            "past_companies": [],
+            "education": "",
+            "summary": "",
+        }
+        rejected_score = {
+            "candidate_id": "cand_rejected",
+            "overall_score": 95,
+            "match_tier": "strong_match",
+            "match_reason": "Strong database experience",
+            "evidence": [{"field": "skills", "value": "RDS", "explanation": "Matches"}],
+            "criterion_scores": [],
+        }
+        kept_score = {
+            "candidate_id": "cand_kept",
+            "overall_score": 90,
+            "match_tier": "strong_match",
+            "match_reason": "Strong tech-lead experience",
+            "evidence": [{"field": "skills", "value": "PostgreSQL", "explanation": "Matches"}],
+            "criterion_scores": [],
+        }
+
+        mock_refine.return_value = RefinementResult(
+            updated_filters=ObjectiveFilters(min_years_experience=5, skills=["PostgreSQL"]),
+            updated_rubric=FitRubric(
+                role_summary="Tech lead",
+                criteria=[RubricCriterion(name="Technical depth", description="Strong database skills", weight=5)],
+            ),
+            changes_made=["Raised the minimum experience to five years"],
+            reasoning="Applied the recruiter's feedback",
+        )
+        mock_filter.return_value = (
+            [
+                CandidateProfile.model_validate(rejected_profile),
+                CandidateProfile.model_validate(kept_profile),
+            ],
+            [],
+        )
+        mock_score.return_value = [CandidateScore.model_validate(kept_score)]
+
+        # The route also guards against IDs outside the loaded candidate pool.
+        # Use this small deterministic pool so the test exercises the rejection
+        # logic rather than unrelated fixture data.
+        import main
+        original_profiles = main.ALL_PROFILES
+        main.ALL_PROFILES = [
+            CandidateProfile.model_validate(rejected_profile),
+            CandidateProfile.model_validate(kept_profile),
+        ]
+        self.addCleanup(setattr, main, "ALL_PROFILES", original_profiles)
+
+        payload = {
+            "feedback": "Candidate 1 is too junior; raise minimum experience to 5 years and require PostgreSQL.",
+            "current_filters": {"skills": ["RDS"]},
+            "current_rubric": {
+                "role_summary": "Database engineer",
+                "criteria": [{"name": "Database", "description": "RDS experience", "weight": 5}],
+                "dealbreakers": [],
+                "positive_signals": [],
+            },
+            "shown_candidates": [rejected_score, kept_score],
+            "shown_profiles": [rejected_profile, kept_profile],
+            "thumbs": {"cand_rejected": False},
+        }
+
+        response = self.client.post("/api/refine", json=payload)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [candidate["candidate_id"] for candidate in response.json()["candidates"]],
+            ["cand_kept"],
+        )
+        scored_candidates = mock_score.call_args.args[0]
+        self.assertEqual([candidate.id for candidate in scored_candidates], ["cand_kept"])
+        self.assertIn(
+            "Removed recruiter-rejected candidate from this shortlist: Vikram Nair",
+            response.json()["changes_made"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

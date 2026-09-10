@@ -239,7 +239,21 @@ async def refine(req: RefineRequest):
     try:
         # Step 2: Re-filter with updated filters deterministically in Python
         matched, _ = filter_candidates(ALL_PROFILES, updated_filters)
-        filtered_candidates = matched
+
+        # A thumbs-down is an explicit recruiter rejection, not merely a hint
+        # for the LLM to infer broader criteria from. Keep those candidates out
+        # of this refined shortlist even when they still satisfy the adjusted
+        # objective filters (for example, a six-year candidate after raising
+        # the minimum experience from four to five years).
+        rejected_ids = {
+            candidate_id
+            for candidate_id, reaction in req.thumbs.items()
+            if reaction is False
+        }
+        filtered_candidates = [
+            candidate for candidate in matched
+            if candidate.id not in rejected_ids
+        ]
         
         valid_profile_ids = {p.id for p in ALL_PROFILES}
         filtered_candidate_ids = {c.id for c in filtered_candidates}
@@ -264,12 +278,28 @@ async def refine(req: RefineRequest):
                 if s.candidate_id in profile_map
             ]
         
+        rejected_names = {
+            profile.name
+            for profile in req.shown_profiles
+            if profile.id in rejected_ids
+        }
+        rejection_note = (
+            "Removed recruiter-rejected candidate from this shortlist: "
+            + ", ".join(sorted(rejected_names))
+            if rejected_names
+            else None
+        )
+
         return RefineResponse(
             filters=updated_filters,
             rubric=updated_rubric,
             candidates=validated_scored,
             candidate_profiles=scored_profiles,
-            changes_made=refinement.changes_made,
+            changes_made=(
+                [*refinement.changes_made, rejection_note]
+                if rejection_note
+                else refinement.changes_made
+            ),
             reasoning=refinement.reasoning,
             total_filtered=len(filtered_candidates),
             total_pool=len(ALL_PROFILES),

@@ -27,6 +27,7 @@ export default function App() {
 
   // Refinement state
   const [thumbs, setThumbs] = useState({}); // { candidateId: true/false }
+  const [rejectedCandidateIds, setRejectedCandidateIds] = useState([]);
   const [chatHistory, setChatHistory] = useState([]); // [{role, content, changes}]
   const [refinementCount, setRefinementCount] = useState(0);
 
@@ -55,6 +56,7 @@ export default function App() {
       setTotalPool(result.total_pool);
       setIsNearMiss(Boolean(result.is_near_miss));
       setThumbs({});
+      setRejectedCandidateIds([]);
       setChatHistory([]);
       setRefinementCount(0);
       setPhase('active');
@@ -77,13 +79,21 @@ export default function App() {
     setChatHistory(prev => [...prev, { role: 'user', content: userDisplay }]);
 
     try {
+      // Re-send every explicit rejection in this search session. The current
+      // thumbs are only the latest feedback, but a rejected candidate must not
+      // quietly return during a later calibration.
+      const allReactions = Object.fromEntries(
+        rejectedCandidateIds.map(candidateId => [candidateId, false])
+      );
+      Object.assign(allReactions, thumbs);
+
       const result = await refine({
         feedback: feedback?.trim() || '',
         currentFilters: filters,
         currentRubric: rubric,
         shownCandidates: candidates,
         shownProfiles: candidateProfiles,
-        thumbs,
+        thumbs: allReactions,
       });
 
       setFilters(result.filters);
@@ -115,7 +125,7 @@ export default function App() {
       ]);
       setPhase('active');
     }
-  }, [filters, rubric, candidates, candidateProfiles, thumbs]);
+  }, [filters, rubric, candidates, candidateProfiles, thumbs, rejectedCandidateIds]);
 
   // ─── Thumbs ────────────────────────────────────────────────────────────
   const handleThumb = useCallback((candidateId, isUp) => {
@@ -126,6 +136,16 @@ export default function App() {
       } else {
         next[candidateId] = isUp;
       }
+
+      setRejectedCandidateIds(previousRejected => {
+        if (next[candidateId] === false) {
+          return previousRejected.includes(candidateId)
+            ? previousRejected
+            : [...previousRejected, candidateId];
+        }
+        return previousRejected.filter(id => id !== candidateId);
+      });
+
       return next;
     });
   }, []);
@@ -159,6 +179,7 @@ export default function App() {
     setCandidates([]);
     setCandidateProfiles([]);
     setThumbs({});
+    setRejectedCandidateIds([]);
     setChatHistory([]);
     setError(null);
     setRefinementCount(0);
