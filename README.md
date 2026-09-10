@@ -130,9 +130,9 @@ When building an AI recruiting tool, the biggest danger is building a demo that 
 
 ## Where the LLM Prompts Live
 
-All prompts used by the app are kept in a dedicated, readable file in the backend:
-
-📁 **[`backend/prompts.py`](backend/prompts.py)**
+All prompts used by the app are documented in:
+- 📖 **[`PROMPTS.md`](PROMPTS.md)** (full markdown documentation with prompt templates and design decisions)
+- 📁 **[`backend/prompts.py`](backend/prompts.py)** (the Python implementation)
 
 I kept them separated from application logic so they are easy to inspect, test, and iterate on:
 
